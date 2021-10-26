@@ -43,4 +43,8 @@ public interface AccountingDropdownReadPlatformService {
 
     Map<String, List<GLAccountData>> retrieveAccountMappingOptionsForShareProducts();
 
+    Map<String, List<GLAccountData>> retrieveExpenseAccountOptions();
+
+    Map<String, List<GLAccountData>> retrieveAssetAccountOptions();
+
 }

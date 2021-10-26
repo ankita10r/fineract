@@ -64,6 +64,8 @@ import org.apache.fineract.organisation.office.domain.Office;
 import org.apache.fineract.organisation.office.domain.OfficeRepositoryWrapper;
 import org.apache.fineract.portfolio.account.PortfolioAccountType;
 import org.apache.fineract.portfolio.account.service.AccountTransfersReadPlatformService;
+import org.apache.fineract.portfolio.charge.domain.Charge;
+import org.apache.fineract.portfolio.charge.domain.ChargeRepositoryWrapper;
 import org.apache.fineract.portfolio.client.domain.ClientTransaction;
 import org.apache.fineract.portfolio.client.domain.ClientTransactionRepositoryWrapper;
 import org.apache.fineract.portfolio.loanaccount.data.LoanTransactionEnumData;
@@ -95,6 +97,7 @@ public class AccountingProcessorHelper {
     private final ClientTransactionRepositoryWrapper clientTransactionRepository;
     private final SavingsAccountTransactionRepository savingsAccountTransactionRepository;
     private final AccountTransfersReadPlatformService accountTransfersReadPlatformService;
+    private final ChargeRepositoryWrapper chargeRepositoryWrapper;
 
     @Autowired
     public AccountingProcessorHelper(final JournalEntryRepository glJournalEntryRepository,
@@ -104,7 +107,8 @@ public class AccountingProcessorHelper {
             final FinancialActivityAccountRepositoryWrapper financialActivityAccountRepository,
             final AccountTransfersReadPlatformService accountTransfersReadPlatformService,
             final GLAccountRepositoryWrapper accountRepositoryWrapper,
-            final ClientTransactionRepositoryWrapper clientTransactionRepositoryWrapper) {
+            final ClientTransactionRepositoryWrapper clientTransactionRepositoryWrapper,
+            final ChargeRepositoryWrapper chargeRepositoryWrapper) {
         this.glJournalEntryRepository = glJournalEntryRepository;
         this.accountMappingRepository = accountMappingRepository;
         this.closureRepository = closureRepository;
@@ -115,6 +119,7 @@ public class AccountingProcessorHelper {
         this.accountTransfersReadPlatformService = accountTransfersReadPlatformService;
         this.accountRepositoryWrapper = accountRepositoryWrapper;
         this.clientTransactionRepository = clientTransactionRepositoryWrapper;
+        this.chargeRepositoryWrapper = chargeRepositoryWrapper;
     }
 
     public LoanDTO populateLoanDtoFromMap(final Map<String, Object> accountingBridgeData, final boolean cashBasedAccountingEnabled,
@@ -758,7 +763,7 @@ public class AccountingProcessorHelper {
      *            chargePaymentDTOs
      */
     public void createCashBasedJournalEntriesAndReversalsForSavingsCharges(final Office office, final String currencyCode,
-            final CashAccountsForSavings accountTypeToBeDebited, final CashAccountsForSavings accountTypeToBeCredited,
+            final CashAccountsForSavings accountTypeToBeDebited, CashAccountsForSavings accountTypeToBeCredited,
             final Long savingsProductId, final Long paymentTypeId, final Long loanId, final String transactionId,
             final Date transactionDate, final BigDecimal totalAmount, final Boolean isReversal,
             final List<ChargePaymentDTO> chargePaymentDTOs) {
@@ -774,9 +779,16 @@ public class AccountingProcessorHelper {
                     "Recent Portfolio changes w.r.t Charges for Savings have Broken the accounting code");
         }
         ChargePaymentDTO chargePaymentDTO = chargePaymentDTOs.get(0);
-
-        final GLAccount chargeSpecificAccount = getLinkedGLAccountForSavingsCharges(savingsProductId, accountTypeToBeCredited.getValue(),
-                chargePaymentDTO.getChargeId());
+        GLAccount chargeSpecificAccount = null;
+        Charge accountIdByCharge = chargeRepositoryWrapper.findOneWithNotFoundDetection(chargePaymentDTO.getChargeId());
+        if (accountIdByCharge.getIncomeAccountId() != null) {
+            Long accountTypetoCredited = accountIdByCharge.getIncomeAccountId();
+            chargeSpecificAccount = getLinkedGLAccountForSavingsCharges(savingsProductId, accountTypetoCredited.intValue(),
+                    chargePaymentDTO.getChargeId());
+        } else {
+            chargeSpecificAccount = getLinkedGLAccountForSavingsCharges(savingsProductId, accountTypeToBeCredited.getValue(),
+                    chargePaymentDTO.getChargeId());
+        }
         final GLAccount savingsControlAccount = getLinkedGLAccountForSavingsProduct(savingsProductId, accountTypeToBeDebited.getValue(),
                 paymentTypeId);
         if (isReversal) {
@@ -1158,6 +1170,7 @@ public class AccountingProcessorHelper {
 
     private GLAccount getLinkedGLAccountForSavingsCharges(final Long savingsProductId, final int accountMappingTypeId,
             final Long chargeId) {
+
         ProductToGLAccountMapping accountMapping = this.accountMappingRepository.findCoreProductToFinAccountMapping(savingsProductId,
                 PortfolioProductType.SAVING.getValue(), accountMappingTypeId);
         /*****
@@ -1167,6 +1180,7 @@ public class AccountingProcessorHelper {
          *****/
 
         // Vishwas TODO: remove this condition as it should always be true
+
         if (accountMappingTypeId == CashAccountsForSavings.INCOME_FROM_FEES.getValue()
                 || accountMappingTypeId == CashAccountsForLoan.INCOME_FROM_PENALTIES.getValue()) {
             final ProductToGLAccountMapping chargeSpecificIncomeAccountMapping = this.accountMappingRepository
@@ -1176,6 +1190,7 @@ public class AccountingProcessorHelper {
                 accountMapping = chargeSpecificIncomeAccountMapping;
             }
         }
+
         return accountMapping.getGlAccount();
     }
 

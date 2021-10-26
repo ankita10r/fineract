@@ -163,11 +163,17 @@ public class SavingsAccountChargeReadPlatformServiceImpl implements SavingsAccou
         final List<EnumOptionData> shareChargeCalculationTypeOptions = null;
         final List<EnumOptionData> shareChargeTimeTypeOptions = null;
         final Collection<TaxGroupData> taxGroupOptions = null;
+
+        final String accountMappingForChargeConfig = null;
+        final Map<String, List<GLAccountData>> expenseAccountOptions = null;
+        final Map<String, List<GLAccountData>> assetAccountOptions = null;
+
         // TODO AA : revisit for merge conflict - Not sure method signature
         return ChargeData.template(null, allowedChargeCalculationTypeOptions, null, allowedChargeTimeOptions, null,
                 loansChargeCalculationTypeOptions, loansChargeTimeTypeOptions, savingsChargeCalculationTypeOptions,
                 savingsChargeTimeTypeOptions, clientChargeCalculationTypeOptions, clientChargeTimeTypeOptions, feeFrequencyOptions,
-                incomeOrLiabilityAccountOptions, taxGroupOptions, shareChargeCalculationTypeOptions, shareChargeTimeTypeOptions);
+                incomeOrLiabilityAccountOptions, taxGroupOptions, shareChargeCalculationTypeOptions, shareChargeTimeTypeOptions,
+                accountMappingForChargeConfig, expenseAccountOptions, assetAccountOptions);
     }
 
     @Override
@@ -180,6 +186,23 @@ public class SavingsAccountChargeReadPlatformServiceImpl implements SavingsAccou
             final String sql = "select " + rm.schema() + " where sc.id=? and sc.savings_account_id=?";
 
             return this.jdbcTemplate.queryForObject(sql, rm, new Object[] { id, savingsAccountId });
+        } catch (final EmptyResultDataAccessException e) {
+            throw new SavingsAccountChargeNotFoundException(savingsAccountId, e);
+        }
+    }
+
+    @Override
+    public long retrieveSavingsAccountChargeDetailsId(final Long id, final Long savingsAccountId) {
+        try {
+            this.context.authenticatedUser();
+
+            final SavingsAccountChargeMapper rm = new SavingsAccountChargeMapper();
+
+            final String sql = "select " + rm.schema() + " where sc.id=? and sc.savings_account_id=?";
+            SavingsAccountChargeData savingsAccountChargeData = this.jdbcTemplate.queryForObject(sql, rm,
+                    new Object[] { id, savingsAccountId });
+
+            return savingsAccountChargeData.getAccountId();
         } catch (final EmptyResultDataAccessException e) {
             throw new SavingsAccountChargeNotFoundException(savingsAccountId, e);
         }
